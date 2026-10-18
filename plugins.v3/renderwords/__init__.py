@@ -61,7 +61,7 @@ class RenderWords(_PluginBase):
     plugin_name = "渲染词"
     plugin_desc = "识别完成后按「渲染词」规则修正最终元数据：标题替换、季集重映射、年份/类型/TMDB 重定向"
     plugin_icon = "renderwords.png"
-    plugin_version = "1.0.9"
+    plugin_version = "1.0.10"
     plugin_author = "pipi20xx"
     author_url = "https://github.com/pipi20xx/555999"
     plugin_config_prefix = "renderwords_"
@@ -725,7 +725,7 @@ class RenderWords(_PluginBase):
             "file": (filename or "")[:100],
             "title": getattr(mediainfo, "title", "") or "",
             "season": getattr(mediainfo, "season", None),
-            "rules": hits[:3],
+            "rules": hits,
         }
         data = self.get_data("hits") or []
         if not isinstance(data, list):
@@ -953,14 +953,20 @@ class RenderWords(_PluginBase):
         total = stats.get("total", 0)
         rows = []
         for hit in hits[:20]:
+            # 每条命中的规则独占一行，全部展示不截断
+            rule_items = []
+            for rule in hit.get("rules") or []:
+                rule_items.append({
+                    "component": "VListItemTitle",
+                    "text": rule,
+                })
             rows.append({
                 "component": "VListItem",
                 "props": {"subtitle": f"{hit.get('time', '')} · {hit.get('file', '')}"},
                 "content": [{
                     "component": "VListItemTitle",
-                    "text": f"{hit.get('title', '')}  S{hit.get('season', '')}  ←  "
-                            + " / ".join(hit.get("rules") or []),
-                }],
+                    "text": f"{hit.get('title', '')}  S{hit.get('season', '')}",
+                }] + rule_items,
             })
 
         # 远程规则拉取状态（本次运行期内）
