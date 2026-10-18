@@ -61,7 +61,7 @@ class RenderWords(_PluginBase):
     plugin_name = "渲染词"
     plugin_desc = "识别完成后按「渲染词」规则修正最终元数据：标题替换、季集重映射、年份/类型/TMDB 重定向"
     plugin_icon = "renderwords.png"
-    plugin_version = "1.0.4"
+    plugin_version = "1.0.5"
     plugin_author = "pipi20xx"
     author_url = "https://github.com/pipi20xx/555999"
     plugin_config_prefix = "renderwords_"
@@ -417,12 +417,20 @@ class RenderWords(_PluginBase):
         return meta, mediainfo
 
     def _translate(self, pattern: str, replacement: str, meta, mediainfo):
+        def sub(value):
+            try:
+                return re.sub(pattern, replacement, value, flags=re.I)
+            except Exception:
+                return value
+
         if meta is not None:
-            for attr in ("cn_name", "en_name"):
+            # title/name 也要替换：识别失败（无 media_info）或 cn/en 名为空时，
+            # 替换结果只能落在 meta.title 上，否则翻译规则看起来「没生效」
+            for attr in ("title", "name", "cn_name", "en_name"):
                 value = getattr(meta, attr, None)
                 if value:
                     try:
-                        setattr(meta, attr, re.sub(pattern, replacement, value, flags=re.I))
+                        setattr(meta, attr, sub(value))
                     except Exception:
                         pass
         if mediainfo is not None:
@@ -430,7 +438,7 @@ class RenderWords(_PluginBase):
                 value = getattr(mediainfo, attr, None)
                 if value:
                     try:
-                        setattr(mediainfo, attr, re.sub(pattern, replacement, value, flags=re.I))
+                        setattr(mediainfo, attr, sub(value))
                     except Exception:
                         pass
         return meta, mediainfo

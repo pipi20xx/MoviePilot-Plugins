@@ -50,7 +50,8 @@
 Regex => Replacement
 ```
 
-对 `mediainfo.title / en_title / original_title` 与 `meta.cn_name / en_name` 做正则替换（忽略大小写）。
+对 `meta.title / name / cn_name / en_name` 与 `mediainfo.title / en_title / original_title`
+做正则替换（忽略大小写）。识别失败（无 `media_info`）时替换结果落在 `meta.title` 上，API 返回仍能看到效果。
 
 ```
 Unlimited Blade Works => UBW
@@ -159,6 +160,6 @@ python tests/v3/renderwords/test_renderwords.py   # 直接运行
 python -m pytest tests/v3/renderwords -q          # pytest 收集运行
 ```
 
-覆盖：专家条件分季、集号平移、合集 begin/end 同步、正则翻译、正则提取、
+覆盖：专家条件分季、集号平移、合集 begin/end 同步、正则翻译（含无 media_info 场景）、正则提取、
 偏移定位器、`includes` 的 `& | ()` 逻辑、公式求值（含非法表达式拦截）、
 配置解析、未启用时放行、`get_module` 双钩子注册。

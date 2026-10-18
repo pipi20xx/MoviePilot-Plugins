@@ -10,7 +10,7 @@
 
 | 插件 ID | 名称 | 说明 | 版本 |
 | --- | --- | --- | --- |
-| `RenderWords` | [渲染词](./plugins.v3/renderwords/README.md) | 识别完成后按「渲染词」规则修正最终元数据：标题替换、季集重映射、年份/类型/TMDB 重定向 | 1.0.1 |
+| `RenderWords` | [渲染词](./plugins.v3/renderwords/README.md) | 识别完成后按「渲染词」规则修正最终元数据：标题替换、季集重映射、年份/类型/TMDB 重定向 | 1.0.5 |
 
 ## 在 MoviePilot 中使用
 

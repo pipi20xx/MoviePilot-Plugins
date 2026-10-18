@@ -278,6 +278,23 @@ def test_regex_translate():
     assert "UBW" in info.title and "Unlimited" not in info.title
 
 
+def test_regex_translate_meta_title_when_no_mediainfo():
+    """识别失败（无 media_info / cn、en 名为空）时，翻译规则要能落到 meta.title"""
+    plugin = make_plugin()
+    media_type = sys.modules["app.schemas.types"].MediaType
+    meta = Meta(title="Yasei no Last Boss - 16", org_string="[LoliHouse] Yasei no Last Boss - 16",
+                type=media_type.TV, begin_episode=16)
+    # mediainfo 为 None：模拟识别失败
+    info, hits = plugin._run_rules(meta, None, meta.org_string, ["Last Boss => 最后的boss"])
+    assert hits
+    assert "最后的boss" in meta.title and "Last Boss" not in meta.title
+
+    # meta.title 为空、只有 cn_name 时也要能替换
+    meta2 = Meta(title="", cn_name="野性的最终 boss", org_string="野性的最终 boss 16", type=media_type.TV)
+    info2, hits2 = plugin._run_rules(meta2, None, meta2.org_string, ["boss => BOSS"])
+    assert hits2 and meta2.cn_name == "野性的最终 BOSS"
+
+
 def test_regex_extract_episode():
     """正则提取：强制覆盖集数"""
     plugin = make_plugin()
