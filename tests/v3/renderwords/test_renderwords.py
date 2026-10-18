@@ -154,11 +154,23 @@ def install_stubs() -> None:
     sdk_plugin.ModuleManager = ModuleManager
     sdk_logging = types.ModuleType("app.sdk.logging")
     sdk_logging.logger = logger
+    sdk_network = types.ModuleType("app.sdk.network")
+
+    class RequestUtils:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get_res(self, url):
+            raise RuntimeError("测试桩不发起网络请求")
+
+    sdk_network.RequestUtils = RequestUtils
     sdk.logging = sdk_logging
+    sdk.network = sdk_network
     sdk.plugin = sdk_plugin
     sys.modules["app.sdk"] = sdk
     sys.modules["app.sdk.plugin"] = sdk_plugin
     sys.modules["app.sdk.logging"] = sdk_logging
+    sys.modules["app.sdk.network"] = sdk_network
 
 
 def load_plugin():

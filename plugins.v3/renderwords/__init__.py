@@ -34,6 +34,7 @@ from typing import Any, Dict, List, Optional, Tuple
 # ---------------------------------------------------------------------------
 from app.schemas.types import MediaType, ModuleType
 from app.sdk.logging import logger
+from app.sdk.network import RequestUtils
 from app.sdk.plugin import ModuleManager, _PluginBase
 
 __all__ = ["RenderWords"]
@@ -60,7 +61,7 @@ class RenderWords(_PluginBase):
     plugin_name = "渲染词"
     plugin_desc = "识别完成后按「渲染词」规则修正最终元数据：标题替换、季集重映射、年份/类型/TMDB 重定向"
     plugin_icon = "renderwords.png"
-    plugin_version = "1.0.1"
+    plugin_version = "1.0.2"
     plugin_author = "pipi20xx"
     author_url = "https://github.com/pipi20xx/555999"
     plugin_config_prefix = "renderwords_"
@@ -75,6 +76,7 @@ class RenderWords(_PluginBase):
     _rules: List[str] = []
     _remote_rules: List[str] = []
     _remote_urls: List[str] = []
+    _remote_status: List[Dict[str, Any]] = []
     # 同步链路重入保护（线程级）
     _local = threading.local()
     # 异步链路重入保护（协程级）
@@ -578,23 +580,35 @@ class RenderWords(_PluginBase):
     # 远程规则
     # ------------------------------------------------------------------
     def refresh_remote_rules(self):
+        """拉取全部远程规则；成功即更新内存与缓存，失败保留上次缓存并在详情页标注"""
         if not self._remote_urls:
             return
         lines: List[str] = []
+        statuses: List[Dict[str, Any]] = []
         for url in self._remote_urls:
             try:
-                request = urllib.request.Request(
-                    url, headers={"User-Agent": "MoviePilot-RenderWords/1.0"}
-                )
-                with urllib.request.urlopen(request, timeout=15) as response:
-                    text = response.read().decode("utf-8", errors="ignore")
+                response = RequestUtils(
+                    ua="MoviePilot-RenderWords/1.0", timeout=15
+                ).get_res(url)
+                if response is None:
+                    raise RuntimeError("请求失败（无响应，检查容器网络/代理）")
+                response.raise_for_status()
+                text = response.text or ""
+                count_before = len(lines)
                 lines.extend([
                     line.strip()
                     for line in text.splitlines()
                     if line.strip() and not line.strip().startswith("#")
                 ])
+                statuses.append({
+                    "url": url, "ok": True,
+                    "count": len(lines) - count_before,
+                })
+                logger.info(f"渲染词：远程规则拉取成功 {url}（{len(lines) - count_before} 条）")
             except Exception as err:
+                statuses.append({"url": url, "ok": False, "error": str(err)[:120]})
                 logger.warning(f"渲染词：拉取远程规则失败 {url} - {err}")
+        self._remote_status = statuses
         if lines:
             self._remote_rules = lines
             try:
@@ -739,22 +753,46 @@ class RenderWords(_PluginBase):
                 }],
             })
 
-        return [{
-            "component": "VCard",
-            "props": {"variant": "tonal"},
-            "content": [
+        # 远程规则拉取状态（本次运行期内）
+        remote_rows = []
+        for st in self._remote_status:
+            if st.get("ok"):
+                title = f"OK · {st.get('count', 0)} 条"
+            else:
+                title = f"失败 · {st.get('error', '')}"
+            remote_rows.append({
+                "component": "VListItem",
+                "props": {"subtitle": st.get("url", "")},
+                "content": [{"component": "VListItemTitle", "text": title}],
+            })
+
+        page_content = [
                 {
                     "component": "VCardText",
                     "text": f"本地规则 {len(self._rules)} 条 · 远程规则 {len(self._remote_rules)} 条 · 累计命中 {total} 次",
                 },
                 {"component": "VDivider"},
-                {
-                    "component": "VList",
-                    "props": {"density": "compact"},
-                    "content": rows or [{
-                        "component": "VListItem",
-                        "props": {"title": "暂无命中记录"},
-                    }],
-                },
-            ],
+        ]
+        if remote_rows:
+            page_content.append({
+                "component": "VList",
+                "props": {"density": "compact", "subtitle": "远程规则拉取状态"},
+                "content": remote_rows,
+            })
+            page_content.append({"component": "VDivider"})
+        page_content.append(
+            {
+                "component": "VList",
+                "props": {"density": "compact"},
+                "content": rows or [{
+                    "component": "VListItem",
+                    "props": {"title": "暂无命中记录"},
+                }],
+            }
+        )
+
+        return [{
+            "component": "VCard",
+            "props": {"variant": "tonal"},
+            "content": page_content,
         }]
