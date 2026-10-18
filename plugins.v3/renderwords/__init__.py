@@ -61,7 +61,7 @@ class RenderWords(_PluginBase):
     plugin_name = "渲染词"
     plugin_desc = "识别完成后按「渲染词」规则修正最终元数据：标题替换、季集重映射、年份/类型/TMDB 重定向"
     plugin_icon = "renderwords.png"
-    plugin_version = "1.0.7"
+    plugin_version = "1.0.8"
     plugin_author = "pipi20xx"
     author_url = "https://github.com/pipi20xx/555999"
     plugin_config_prefix = "renderwords_"
@@ -352,7 +352,8 @@ class RenderWords(_PluginBase):
             if replacement.startswith("&&"):
                 chain_rule = replacement[2:].strip()
                 replacement = ""
-            if not re.search(pattern, filename, re.I):
+            if not re.search(pattern, filename, re.I) \
+                    and not self._translate_hit_in_fields(pattern, meta, mediainfo):
                 return False, meta, mediainfo, ctx
             meta, mediainfo = self._translate(pattern, replacement, meta, mediainfo)
             if chain_rule and _chain_depth < 5:
@@ -454,6 +455,39 @@ class RenderWords(_PluginBase):
             except Exception as err:
                 logger.warning(f"渲染词：动作 [{key}={value}] 执行失败 - {err}")
         return meta, mediainfo
+
+    def _translate_hit_in_fields(self, pattern: str, meta, mediainfo) -> bool:
+        """命中判定补充：识别结果字段里（已勾选的翻译字段）也能命中正则。
+
+        场景：`葬送的芙莉莲 => 测试改名` —— 文件名里没有这个词，
+        但识别到的 media.title 是「葬送的芙莉莲」，应视为命中并替换。
+        """
+        fields = set(self._translate_fields or self.DEFAULT_TRANSLATE_FIELDS)
+        return self._any_field_matches(pattern, fields, meta, mediainfo)
+
+    def _any_field_matches(self, pattern: str, fields: set, meta, mediainfo) -> bool:
+        table = (
+            (meta, "meta", ("title", "name", "cn_name", "en_name", "resource_team",
+                            "subtitle", "edition", "part", "episode_group",
+                            "resource_pix", "resource_effect", "resource_type",
+                            "video_encode", "audio_encode", "media_source")),
+            (mediainfo, "media", ("title", "en_title", "original_title",
+                                  "hk_title", "tw_title", "sg_title", "overview")),
+        )
+        for obj, prefix, attrs in table:
+            if obj is None:
+                continue
+            for attr in attrs:
+                if f"{prefix}.{attr}" not in fields:
+                    continue
+                value = getattr(obj, attr, None)
+                if value:
+                    try:
+                        if re.search(pattern, value, re.I):
+                            return True
+                    except Exception:
+                        continue
+        return False
 
     def _translate(self, pattern: str, replacement: str, meta, mediainfo):
         """按配置的 translate_fields 决定翻译规则替换哪些字段"""

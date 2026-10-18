@@ -361,6 +361,26 @@ def test_translate_all_supported_fields():
     assert "芙莉莲" in info.overview
 
 
+def test_translate_hit_on_media_title():
+    """规则匹配媒体标题（文件名里没有）：葬送的芙莉莲 => 测试改名"""
+    plugin = make_plugin()
+    media_type = sys.modules["app.schemas.types"].MediaType
+    meta = Meta(title="[喵萌奶茶屋][Sousou no Frieren][32][1080p][简日双语]",
+                org_string="[Nekomoe kissaten][Sousou no Frieren][32][1080p][JPSC]",
+                type=media_type.TV, resource_team="喵萌奶茶屋")
+    info = MediaInfo(title="葬送的芙莉莲", en_title="Frieren: Beyond Journey's End",
+                     original_title="葬送のフリーレン", type=media_type.TV)
+    info, hits = plugin._run_rules(meta, info, meta.org_string, ["葬送的芙莉莲 => 测试改名"])
+    assert hits, "命中判定应覆盖媒体标题字段"
+    assert info.title == "测试改名"
+    # 文件名里没有该词，meta 层不受影响
+    assert "喵萌奶茶屋" in meta.title
+
+    # 反向：文件名命中时各字段照常替换（既有行为不回归）
+    info2, hits2 = plugin._run_rules(meta, info, meta.org_string, ["Sousou no Frieren => Frieren"])
+    assert hits2 and "Frieren" in meta.title
+
+
 def test_regex_extract_episode():
     """正则提取：强制覆盖集数"""
     plugin = make_plugin()
