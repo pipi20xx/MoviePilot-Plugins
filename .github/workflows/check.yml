@@ -1,0 +1,34 @@
+name: Plugin Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pytest
+        run: python -m pip install --quiet pytest
+
+      - name: Compile plugin
+        run: python -m compileall plugins.v3
+
+      - name: Check plugin versions
+        run: python .github/scripts/check_plugin_versions.py package.v3.json
+
+      - name: Run plugin tests
+        run: python -m pytest tests/v3 -q

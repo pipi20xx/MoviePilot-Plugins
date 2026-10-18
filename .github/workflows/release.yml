@@ -1,0 +1,92 @@
+name: Plugin Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.v3.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y jq zip
+
+      - name: Check plugin versions
+        run: python .github/scripts/check_plugin_versions.py package.v3.json
+
+      - name: Build and release changed plugins
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          : > processed_tags.txt
+
+          for entry in $(jq -r 'to_entries | map(select(.value.release == true)) | .[] | "\(.key)|\(.value.version)"' package.v3.json); do
+            plugin_id="${entry%%|*}"
+            plugin_version="${entry##*|}"
+            plugin_id_lc="$(echo "$plugin_id" | tr '[:upper:]' '[:lower:]')"
+            plugin_dir="plugins.v3/${plugin_id_lc}"
+
+            if [ ! -d "$plugin_dir" ]; then
+              echo "Missing plugin directory: $plugin_dir" >&2
+              exit 1
+            fi
+
+            tag="${plugin_id}_v${plugin_version}"
+            asset="${plugin_id_lc}_v${plugin_version}.zip"
+            release_notes="$(jq -r --arg plugin_id "$plugin_id" --arg version "v$plugin_version" '.[$plugin_id].history[$version] // empty' package.v3.json)"
+            if [ -z "$release_notes" ]; then
+              release_notes="Automated release of $plugin_id $plugin_version"
+            fi
+
+            if grep -qxF "$tag" processed_tags.txt; then
+              echo "Tag $tag already processed, skip."
+              continue
+            fi
+
+            changed=1
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              if git diff --quiet "$tag" -- "$plugin_dir"; then
+                changed=0
+              fi
+            fi
+
+            if [ "$changed" -eq 0 ]; then
+              echo "No changes in $plugin_dir since $tag, skip packaging $plugin_id."
+              if gh release view "$tag" >/dev/null 2>&1; then
+                gh release edit "$tag" --notes "$release_notes"
+              fi
+              echo "$tag" >> processed_tags.txt
+              continue
+            fi
+
+            echo "Packing $plugin_id from $plugin_dir -> $asset"
+            rm -f "$asset"
+            (cd "$(dirname "$plugin_dir")" && zip -r "$GITHUB_WORKSPACE/$asset" "$(basename "$plugin_dir")" -x "*/__pycache__/*" -x "*.pyc") >/dev/null
+
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "Release $tag exists, deleting..."
+              gh release delete "$tag" -y
+              git push origin :refs/tags/"$tag" || true
+            fi
+
+            git tag -d "$tag" >/dev/null 2>&1 || true
+
+            echo "Creating release $tag"
+            gh release create "$tag" "$asset" --title "$tag" --notes "$release_notes" --latest --target "$GITHUB_SHA"
+
+            echo "$tag" >> processed_tags.txt
+          done
