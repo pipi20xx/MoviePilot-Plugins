@@ -61,7 +61,7 @@ class RenderWords(_PluginBase):
     plugin_name = "渲染词"
     plugin_desc = "识别完成后按「渲染词」规则修正最终元数据：标题替换、季集重映射、年份/类型/TMDB 重定向"
     plugin_icon = "renderwords.png"
-    plugin_version = "1.0.3"
+    plugin_version = "1.0.4"
     plugin_author = "pipi20xx"
     author_url = "https://github.com/pipi20xx/555999"
     plugin_config_prefix = "renderwords_"
@@ -666,7 +666,7 @@ class RenderWords(_PluginBase):
                 "content": [
                     {
                         "component": "VExpansionPanelTitle",
-                        "props": {"text": title},
+                        "text": title,
                     },
                     {
                         "component": "VExpansionPanelText",
