@@ -16,7 +16,7 @@ MoviePilot 插件：渲染词（RenderWords）
     3. 偏移定位器    [ <> v2] >> EP+10
     4. 专家条件修正  @?{[tmdbid=127532;type=tv;e=13-25]} => {[s=2;e=EP-12]}
 
-版本：1.0.1（MoviePilot V3 专用）
+版本：1.0.7（MoviePilot V3 专用）
 """
 
 import ast
@@ -61,7 +61,7 @@ class RenderWords(_PluginBase):
     plugin_name = "渲染词"
     plugin_desc = "识别完成后按「渲染词」规则修正最终元数据：标题替换、季集重映射、年份/类型/TMDB 重定向"
     plugin_icon = "renderwords.png"
-    plugin_version = "1.0.6"
+    plugin_version = "1.0.7"
     plugin_author = "pipi20xx"
     author_url = "https://github.com/pipi20xx/555999"
     plugin_config_prefix = "renderwords_"
@@ -76,10 +76,24 @@ class RenderWords(_PluginBase):
         {"value": "meta.cn_name", "title": "meta.cn_name（中文名）"},
         {"value": "meta.en_name", "title": "meta.en_name（英文名）"},
         {"value": "meta.resource_team", "title": "meta.resource_team（字幕组/发布组）"},
+        {"value": "meta.subtitle", "title": "meta.subtitle（副标题）"},
+        {"value": "meta.edition", "title": "meta.edition（版本/配置）"},
+        {"value": "meta.part", "title": "meta.part（部分/分卷）"},
+        {"value": "meta.episode_group", "title": "meta.episode_group（剧集组）"},
+        {"value": "meta.resource_pix", "title": "meta.resource_pix（分辨率）"},
+        {"value": "meta.resource_effect", "title": "meta.resource_effect（特效）"},
+        {"value": "meta.resource_type", "title": "meta.resource_type（资源类型）"},
+        {"value": "meta.video_encode", "title": "meta.video_encode（视频编码）"},
+        {"value": "meta.audio_encode", "title": "meta.audio_encode（音频编码）"},
+        {"value": "meta.media_source", "title": "meta.media_source（来源平台）"},
         # mediainfo 层（识别到的媒体，返回给 media_info）
         {"value": "media.title", "title": "media.title（媒体标题）"},
         {"value": "media.en_title", "title": "media.en_title（媒体英标题）"},
         {"value": "media.original_title", "title": "media.original_title（媒体原标题）"},
+        {"value": "media.hk_title", "title": "media.hk_title（港版标题）"},
+        {"value": "media.tw_title", "title": "media.tw_title（台版标题）"},
+        {"value": "media.sg_title", "title": "media.sg_title（新加坡标题）"},
+        {"value": "media.overview", "title": "media.overview（简介，慎用）"},
     ]
     # 默认全选（v1.0.5 行为：meta.title/name 纳入翻译）
     DEFAULT_TRANSLATE_FIELDS = [f["value"] for f in TRANSLATE_FIELDS]
@@ -465,8 +479,16 @@ class RenderWords(_PluginBase):
                     except Exception:
                         pass
 
-        apply(meta, "meta", ("title", "name", "cn_name", "en_name", "resource_team"))
-        apply(mediainfo, "media", ("title", "en_title", "original_title"))
+        apply(meta, "meta", (
+            "title", "name", "cn_name", "en_name", "resource_team",
+            "subtitle", "edition", "part", "episode_group",
+            "resource_pix", "resource_effect", "resource_type",
+            "video_encode", "audio_encode", "media_source",
+        ))
+        apply(mediainfo, "media", (
+            "title", "en_title", "original_title",
+            "hk_title", "tw_title", "sg_title", "overview",
+        ))
         return meta, mediainfo
 
     def _set_season(self, meta, mediainfo, season: int):

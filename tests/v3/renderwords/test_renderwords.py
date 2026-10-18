@@ -203,6 +203,16 @@ class Meta:
     total_episode: int = 0
     tmdbid: Optional[int] = None
     resource_team: Optional[str] = None
+    subtitle: Optional[str] = None
+    edition: Optional[str] = None
+    part: Optional[str] = None
+    episode_group: Optional[str] = None
+    resource_pix: Optional[str] = None
+    resource_effect: Optional[str] = None
+    resource_type: Optional[str] = None
+    video_encode: Optional[str] = None
+    audio_encode: Optional[str] = None
+    media_source: Optional[str] = None
 
 
 @dataclass
@@ -210,6 +220,10 @@ class MediaInfo:
     title: str = ""
     en_title: str = ""
     original_title: str = ""
+    hk_title: Optional[str] = None
+    tw_title: Optional[str] = None
+    sg_title: Optional[str] = None
+    overview: Optional[str] = None
     tmdb_id: Optional[int] = None
     season: int = 1
     year: str = "2024"
@@ -320,6 +334,31 @@ def test_translate_field_selection_and_resource_team():
     assert meta2.resource_team == "喵萌"
     assert meta2.title == "Nekomoe kissaten 某番"
     assert info2.title == "某番 Nekomoe kissaten"
+
+
+def test_translate_all_supported_fields():
+    """翻译规则覆盖全部可配置字段（meta 附加字段 + media 地区标题）"""
+    plugin = make_plugin()
+    media_type = sys.modules["app.schemas.types"].MediaType
+    meta = Meta(title="x", org_string="[Nekomoe kissaten] 某番 32 [1080p][JPSC][HEVC][AAC][B-Global]",
+                type=media_type.TV,
+                subtitle="简日双语", edition="无水印", part="Part1", episode_group="",
+                resource_pix="1080p", resource_effect="", resource_type="WebRip",
+                video_encode="HEVC", audio_encode="AAC", media_source="B-Global",
+                resource_team="Nekomoe kissaten")
+    info = MediaInfo(title="某番", hk_title="某番港", tw_title="某番台", sg_title="某番新",
+                     overview="Some text 某番", type=media_type.TV)
+    info, hits = plugin._run_rules(meta, info, meta.org_string,
+                                   ["1080p => 4K", "HEVC => H.265", "B-Global => 巴哈"])
+    assert len(hits) == 3
+    assert meta.resource_pix == "4K" and meta.video_encode == "H.265" and meta.media_source == "巴哈"
+    # 空值字段不报错、保持为 None/空
+    assert not meta.resource_effect and not meta.episode_group
+
+    # media 地区标题 + overview
+    info, hits = plugin._run_rules(meta, info, meta.org_string, ["某番 => 芙莉莲"])
+    assert info.hk_title == "芙莉莲港" and info.tw_title == "芙莉莲台" and info.sg_title == "芙莉莲新"
+    assert "芙莉莲" in info.overview
 
 
 def test_regex_extract_episode():
