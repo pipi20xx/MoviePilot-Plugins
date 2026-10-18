@@ -61,18 +61,35 @@ class RenderWords(_PluginBase):
     plugin_name = "渲染词"
     plugin_desc = "识别完成后按「渲染词」规则修正最终元数据：标题替换、季集重映射、年份/类型/TMDB 重定向"
     plugin_icon = "renderwords.png"
-    plugin_version = "1.0.5"
+    plugin_version = "1.0.6"
     plugin_author = "pipi20xx"
     author_url = "https://github.com/pipi20xx/555999"
     plugin_config_prefix = "renderwords_"
     plugin_order = 20
     auth_level = 1
 
+    # 正则翻译可作用的全部字段（展示顺序即配置页下拉顺序）
+    TRANSLATE_FIELDS: List[Dict[str, str]] = [
+        # meta 层（识别前的文件名元数据，返回给 meta_info）
+        {"value": "meta.title", "title": "meta.title（识别标题）"},
+        {"value": "meta.name", "title": "meta.name（识别名称）"},
+        {"value": "meta.cn_name", "title": "meta.cn_name（中文名）"},
+        {"value": "meta.en_name", "title": "meta.en_name（英文名）"},
+        {"value": "meta.resource_team", "title": "meta.resource_team（字幕组/发布组）"},
+        # mediainfo 层（识别到的媒体，返回给 media_info）
+        {"value": "media.title", "title": "media.title（媒体标题）"},
+        {"value": "media.en_title", "title": "media.en_title（媒体英标题）"},
+        {"value": "media.original_title", "title": "media.original_title（媒体原标题）"},
+    ]
+    # 默认全选（v1.0.5 行为：meta.title/name 纳入翻译）
+    DEFAULT_TRANSLATE_FIELDS = [f["value"] for f in TRANSLATE_FIELDS]
+
     # ---- 运行态 ----
     _enabled: bool = False
     _only_tv: bool = True
     _skip_explicit_id: bool = True
     _debug: bool = False
+    _translate_fields: List[str] = []
     _rules: List[str] = []
     _remote_rules: List[str] = []
     _remote_urls: List[str] = []
@@ -91,6 +108,14 @@ class RenderWords(_PluginBase):
         self._only_tv = bool(config.get("only_tv", True))
         self._skip_explicit_id = bool(config.get("skip_explicit_id", True))
         self._debug = bool(config.get("debug", False))
+
+        # 翻译字段选择：空/未配置 = 默认全开（兼容老配置）
+        fields = config.get("translate_fields")
+        if isinstance(fields, list) and fields:
+            valid = {f["value"] for f in self.TRANSLATE_FIELDS}
+            self._translate_fields = [f for f in fields if f in valid]
+        else:
+            self._translate_fields = list(self.DEFAULT_TRANSLATE_FIELDS)
 
         rules_text = config.get("rules") or ""
         self._rules = [
@@ -417,30 +442,31 @@ class RenderWords(_PluginBase):
         return meta, mediainfo
 
     def _translate(self, pattern: str, replacement: str, meta, mediainfo):
+        """按配置的 translate_fields 决定翻译规则替换哪些字段"""
         def sub(value):
             try:
                 return re.sub(pattern, replacement, value, flags=re.I)
             except Exception:
                 return value
 
-        if meta is not None:
-            # title/name 也要替换：识别失败（无 media_info）或 cn/en 名为空时，
-            # 替换结果只能落在 meta.title 上，否则翻译规则看起来「没生效」
-            for attr in ("title", "name", "cn_name", "en_name"):
-                value = getattr(meta, attr, None)
+        fields = set(self._translate_fields or self.DEFAULT_TRANSLATE_FIELDS)
+
+        def apply(obj, prefix, attrs):
+            if obj is None:
+                return
+            for attr in attrs:
+                key = f"{prefix}.{attr}"
+                if key not in fields:
+                    continue
+                value = getattr(obj, attr, None)
                 if value:
                     try:
-                        setattr(meta, attr, sub(value))
+                        setattr(obj, attr, sub(value))
                     except Exception:
                         pass
-        if mediainfo is not None:
-            for attr in ("title", "en_title", "original_title"):
-                value = getattr(mediainfo, attr, None)
-                if value:
-                    try:
-                        setattr(mediainfo, attr, sub(value))
-                    except Exception:
-                        pass
+
+        apply(meta, "meta", ("title", "name", "cn_name", "en_name", "resource_team"))
+        apply(mediainfo, "media", ("title", "en_title", "original_title"))
         return meta, mediainfo
 
     def _set_season(self, meta, mediainfo, season: int):
@@ -790,6 +816,27 @@ class RenderWords(_PluginBase):
                             "component": "VCol",
                             "props": {"cols": 12},
                             "content": [{
+                                "component": "VSelect",
+                                "props": {
+                                    "model": "translate_fields",
+                                    "label": "正则翻译作用的字段（可多选，留空 = 全部）",
+                                    "items": self.TRANSLATE_FIELDS,
+                                    "multiple": True,
+                                    "chips": True,
+                                    "clearable": True,
+                                    "hint": "「Regex => 替换词」规则只替换这里勾选的字段；"
+                                            "media.* 是识别到的媒体标题（会进媒体库缓存），谨慎勾选",
+                                    "persistent-hint": True,
+                                },
+                            }],
+                        }],
+                    },
+                    {
+                        "component": "VRow",
+                        "content": [{
+                            "component": "VCol",
+                            "props": {"cols": 12},
+                            "content": [{
                                 "component": "VTextarea",
                                 "props": {
                                     "model": "rules",
@@ -835,6 +882,7 @@ class RenderWords(_PluginBase):
             "only_tv": True,
             "skip_explicit_id": True,
             "debug": False,
+            "translate_fields": list(self.DEFAULT_TRANSLATE_FIELDS),
             "rules": "",
             "remote_urls": "",
         }

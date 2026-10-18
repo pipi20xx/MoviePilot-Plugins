@@ -202,6 +202,7 @@ class Meta:
     total_season: int = 0
     total_episode: int = 0
     tmdbid: Optional[int] = None
+    resource_team: Optional[str] = None
 
 
 @dataclass
@@ -293,6 +294,32 @@ def test_regex_translate_meta_title_when_no_mediainfo():
     meta2 = Meta(title="", cn_name="野性的最终 boss", org_string="野性的最终 boss 16", type=media_type.TV)
     info2, hits2 = plugin._run_rules(meta2, None, meta2.org_string, ["boss => BOSS"])
     assert hits2 and meta2.cn_name == "野性的最终 BOSS"
+
+
+def test_translate_field_selection_and_resource_team():
+    """翻译字段可配置：resource_team 可被替换，未勾选的字段不受影响"""
+    plugin = make_plugin()
+    media_type = sys.modules["app.schemas.types"].MediaType
+    meta = Meta(title="Nekomoe kissaten 某番 32", org_string="[Nekomoe kissaten] 某番 32",
+                type=media_type.TV, resource_team="Nekomoe kissaten")
+    info = MediaInfo(title="某番", type=media_type.TV)
+    info, hits = plugin._run_rules(meta, info, meta.org_string, ["Nekomoe kissaten => 喵萌奶茶屋"])
+    assert hits
+    assert meta.resource_team == "喵萌奶茶屋"
+    assert "喵萌奶茶屋" in meta.title
+
+    # 只勾选 resource_team：media.title 不被污染
+    module = load_plugin()
+    plugin2 = module.RenderWords()
+    plugin2.init_plugin({"enabled": True, "only_tv": True, "rules": "",
+                         "translate_fields": ["meta.resource_team"]})
+    meta2 = Meta(title="Nekomoe kissaten 某番", org_string="[Nekomoe kissaten] 某番 32", type=media_type.TV,
+                 resource_team="Nekomoe kissaten")
+    info2 = MediaInfo(title="某番 Nekomoe kissaten", type=media_type.TV)
+    plugin2._run_rules(meta2, info2, meta2.org_string, ["Nekomoe kissaten => 喵萌"])
+    assert meta2.resource_team == "喵萌"
+    assert meta2.title == "Nekomoe kissaten 某番"
+    assert info2.title == "某番 Nekomoe kissaten"
 
 
 def test_regex_extract_episode():
