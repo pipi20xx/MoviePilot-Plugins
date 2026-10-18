@@ -355,10 +355,10 @@ def test_translate_all_supported_fields():
     # 空值字段不报错、保持为 None/空
     assert not meta.resource_effect and not meta.episode_group
 
-    # media 地区标题 + overview
+    # media 地区标题（overview 已移除，不受翻译影响）
     info, hits = plugin._run_rules(meta, info, meta.org_string, ["某番 => 芙莉莲"])
     assert info.hk_title == "芙莉莲港" and info.tw_title == "芙莉莲台" and info.sg_title == "芙莉莲新"
-    assert "芙莉莲" in info.overview
+    assert info.overview == "Some text 某番"
 
 
 def test_translate_hit_on_media_title():

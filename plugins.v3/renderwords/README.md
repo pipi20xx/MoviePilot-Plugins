@@ -62,8 +62,10 @@ Regex => Replacement
   `subtitle`（副标题）、`edition`（版本）、`part`（分卷）、`episode_group`（剧集组）、
   `resource_pix`（分辨率）、`resource_effect`（特效）、`resource_type`（资源类型）、
   `video_encode`（视频编码）、`audio_encode`（音频编码）、`media_source`（来源平台）
-- media 层：`title`、`en_title`、`original_title`、`hk_title` / `tw_title` / `sg_title`（地区标题）、
-  `overview`（简介，慎用）——识别到的媒体标题会进媒体库缓存，谨慎勾选
+- media 层：`title`、`en_title`、`original_title`、`hk_title` / `tw_title` / `sg_title`（地区标题）
+  ——识别到的媒体标题会进媒体库缓存，谨慎勾选；`overview`（简介）不支持翻译，避免大段文本被误伤
+
+替换是逐字段独立进行的：每个勾选字段各自匹配正则，值里有匹配内容的就替换，互不影响。
 
 识别失败（无 `media_info`）时替换结果落在 `meta.title` 上，API 返回仍能看到效果。
 

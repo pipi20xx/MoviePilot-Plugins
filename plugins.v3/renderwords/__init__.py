@@ -61,7 +61,7 @@ class RenderWords(_PluginBase):
     plugin_name = "渲染词"
     plugin_desc = "识别完成后按「渲染词」规则修正最终元数据：标题替换、季集重映射、年份/类型/TMDB 重定向"
     plugin_icon = "renderwords.png"
-    plugin_version = "1.0.8"
+    plugin_version = "1.0.9"
     plugin_author = "pipi20xx"
     author_url = "https://github.com/pipi20xx/555999"
     plugin_config_prefix = "renderwords_"
@@ -93,7 +93,6 @@ class RenderWords(_PluginBase):
         {"value": "media.hk_title", "title": "media.hk_title（港版标题）"},
         {"value": "media.tw_title", "title": "media.tw_title（台版标题）"},
         {"value": "media.sg_title", "title": "media.sg_title（新加坡标题）"},
-        {"value": "media.overview", "title": "media.overview（简介，慎用）"},
     ]
     # 默认全选（v1.0.5 行为：meta.title/name 纳入翻译）
     DEFAULT_TRANSLATE_FIELDS = [f["value"] for f in TRANSLATE_FIELDS]
@@ -472,7 +471,7 @@ class RenderWords(_PluginBase):
                             "resource_pix", "resource_effect", "resource_type",
                             "video_encode", "audio_encode", "media_source")),
             (mediainfo, "media", ("title", "en_title", "original_title",
-                                  "hk_title", "tw_title", "sg_title", "overview")),
+                                  "hk_title", "tw_title", "sg_title")),
         )
         for obj, prefix, attrs in table:
             if obj is None:
@@ -521,7 +520,7 @@ class RenderWords(_PluginBase):
         ))
         apply(mediainfo, "media", (
             "title", "en_title", "original_title",
-            "hk_title", "tw_title", "sg_title", "overview",
+            "hk_title", "tw_title", "sg_title",
         ))
         return meta, mediainfo
 
