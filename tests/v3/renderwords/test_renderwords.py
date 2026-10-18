@@ -288,6 +288,20 @@ def test_regex_extract_episode():
     assert hits and meta.begin_episode == 25
 
 
+def test_translate_chain_rule():
+    """翻译规则 && 串联：先改标题，再对新结果套提取规则"""
+    plugin = make_plugin()
+    media_type = sys.modules["app.schemas.types"].MediaType
+    meta = Meta(title="某番 剧场版 25", org_string="某番 剧场版 25", type=media_type.TV,
+                begin_season=1, begin_episode=25)
+    info = MediaInfo(title="某番 剧场版", tmdb_id=1, type=media_type.TV)
+    info, hits = plugin._run_rules(
+        meta, info, meta.org_string,
+        ["剧场版 => &&@?{[type=tv]} => {[type=movie]}"],
+    )
+    assert hits and plugin._type_str(info.type) in ("movie", "电影")
+
+
 def test_offset_locator():
     """偏移定位器：前词 <> 后词 >> EP+10"""
     plugin = make_plugin()

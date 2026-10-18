@@ -61,7 +61,7 @@ class RenderWords(_PluginBase):
     plugin_name = "渲染词"
     plugin_desc = "识别完成后按「渲染词」规则修正最终元数据：标题替换、季集重映射、年份/类型/TMDB 重定向"
     plugin_icon = "renderwords.png"
-    plugin_version = "1.0.2"
+    plugin_version = "1.0.3"
     plugin_author = "pipi20xx"
     author_url = "https://github.com/pipi20xx/555999"
     plugin_config_prefix = "renderwords_"
@@ -250,7 +250,8 @@ class RenderWords(_PluginBase):
     # ------------------------------------------------------------------
     # 单条规则
     # ------------------------------------------------------------------
-    def _apply_line(self, line: str, meta, mediainfo, filename: str, ctx: dict):
+    def _apply_line(self, line: str, meta, mediainfo, filename: str, ctx: dict,
+                    _chain_depth: int = 0):
         # 1) 偏移定位器：前词 <> 后词 >> 公式
         if " <> " in line and " >> " in line:
             left, rest = line.split(" <> ", 1)
@@ -307,10 +308,19 @@ class RenderWords(_PluginBase):
                 meta, mediainfo = self._apply_mods(mods, meta, mediainfo, ctx)
                 return True, meta, mediainfo, self._context(meta, mediainfo)
 
-            # 3b) 翻译：Regex => Replacement
+            # 3b) 翻译：Regex => Replacement（&&开头可串联下一条规则）
+            chain_rule = None
+            if replacement.startswith("&&"):
+                chain_rule = replacement[2:].strip()
+                replacement = ""
             if not re.search(pattern, filename, re.I):
                 return False, meta, mediainfo, ctx
             meta, mediainfo = self._translate(pattern, replacement, meta, mediainfo)
+            if chain_rule and _chain_depth < 5:
+                _, meta, mediainfo, ctx = self._apply_line(
+                    chain_rule, meta, mediainfo, filename, ctx,
+                    _chain_depth=_chain_depth + 1,
+                )
             return True, meta, mediainfo, ctx
 
         return False, meta, mediainfo, ctx
@@ -647,6 +657,83 @@ class RenderWords(_PluginBase):
     # ------------------------------------------------------------------
     # 配置页 / 详情页
     # ------------------------------------------------------------------
+    @staticmethod
+    def _rule_help_panels() -> List[dict]:
+        """配置页的规则语法说明（折叠面板）"""
+        def panel(title: str, lines: List[str]) -> dict:
+            return {
+                "component": "VExpansionPanel",
+                "content": [
+                    {
+                        "component": "VExpansionPanelTitle",
+                        "props": {"text": title},
+                    },
+                    {
+                        "component": "VExpansionPanelText",
+                        "content": [
+                            {
+                                "component": "VAlert",
+                                "props": {"type": "info", "variant": "tonal", "density": "compact"},
+                                "content": [
+                                    {
+                                        "component": "VRow",
+                                        "content": [
+                                            {
+                                                "component": "VCol",
+                                                "props": {"cols": 12},
+                                                "content": [{
+                                                    "component": "VCardText",
+                                                    "text": line,
+                                                }],
+                                            } for line in lines
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                ],
+            }
+
+        return [
+            panel("① 专家条件修正（最常用）", [
+                "格式：@?{[条件列表]} => {[动作列表]}，条件之间是 AND，全部满足才生效。",
+                "条件：tmdbid / type（tv或movie）/ year / s / e（支持区间 13-25）/ "
+                "includes（文件名包含，支持 & 与 | 及括号）。",
+                "动作：tmdbid / type / year / s / e（支持 EP±N、EP*2 等公式，EP=当前集号）。",
+                "示例：@?{[tmdbid=85937;type=tv;e=27-33]} => {[s=2;e=EP-26]}",
+                "　　　（鬼灭之刃 27-33 集映射为 S2E1-7，合集 begin/end 一起平移）",
+                "示例：@?{[includes=(Netflix&1080p)|(Amazon&4K)]} => {[s=2]}",
+            ]),
+            panel("② 正则翻译（改标题）", [
+                "格式：Regex => Replacement，对识别结果的中/英/原标题做忽略大小写的正则替换。",
+                "只改标题展示，不动季集；Replacement 为空（&& 串联）时只标记命中，见第 ④ 条。",
+                "示例：Unlimited Blade Works => UBW",
+                "示例：(\d{4})p => \1P（\1 为反向引用）",
+            ]),
+            panel("③ 正则提取（强制覆盖季集/ID）", [
+                "格式：Regex => {[k=v;k=v]}，在文件名里匹配并提取，右侧支持 \1 反向引用。",
+                "可写键：e / s / tmdbid（tmdbid 会触发重定向，用新 ID 重新识别）。",
+                "示例：25v2 => {[e=25]}",
+                "示例：[Ss](\d+)E(\d+) => {[s=\1;e=\2]}",
+            ]),
+            panel("④ 偏移定位器 与 && 串联", [
+                "偏移定位：前词 <> 后词 >> 公式，在文件名里匹配『前词(数字)后词』代入公式。",
+                "示例：[ <> v2] >> EP+10（文件名里 25v2 识别为 E35）。",
+                "串联：翻译规则命中后，可用『Regex => &&下一条规则』继续执行下一条规则，",
+                "常用于『先改标题、再按新标题套专家规则』的链式场景，最多串联 5 层。",
+                "示例：剧场版 => &&@?{[type=tv]} => {[type=movie]}",
+            ]),
+            panel("⑤ 通用说明", [
+                "每行一条规则，# 开头为注释；规则按顺序执行，命中可叠加。",
+                "公式占位符：EP=当前集号、END=合集末集、S=季号、YEAR=年份、TMDBID=当前ID。",
+                "远程规则地址每行一个，与本地规则合并生效，每天 04:10 自动刷新，"
+                "拉取结果见插件详情页的状态列表。",
+                "插件工作在『识别之后』：不影响识别命中率，只修正最终季集/标题/年份/TMDB ID；"
+                "文件名由重命名模板决定，模板用 {{ title }} 时翻译结果才会体现。",
+            ]),
+        ]
+
     def get_form(self) -> Tuple[Optional[List[dict]], Dict[str, Any]]:
         return [
             {
@@ -702,6 +789,18 @@ class RenderWords(_PluginBase):
                                     "rows": 14,
                                     "placeholder": "@?{[tmdbid=85937;type=tv;e=27-33]} => {[s=2;e=EP-26]}",
                                 },
+                            }],
+                        }],
+                    },
+                    {
+                        "component": "VRow",
+                        "content": [{
+                            "component": "VCol",
+                            "props": {"cols": 12},
+                            "content": [{
+                                "component": "VExpansionPanels",
+                                "props": {"multiple": True, "density": "compact"},
+                                "content": self._rule_help_panels(),
                             }],
                         }],
                     },

@@ -3,13 +3,14 @@
     "name": "渲染词",
     "description": "识别完成后按「渲染词」规则修正最终元数据：标题替换、季集重映射、年份/类型/TMDB 重定向。",
     "labels": "识别,元数据",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "icon": "renderwords.png",
     "author": "pipi20xx",
     "level": 1,
     "release": true,
     "system_version": ">=3.0.0",
     "history": {
+      "v1.0.3": "补齐 Anime-Manager 渲染词引擎的 && 规则串联（翻译命中后继续执行下一条规则，最多 5 层）；配置页新增五组折叠式语法说明面板",
       "v1.0.2": "远程规则改用宿主 SDK（RequestUtils，随宿主代理设置）拉取，修复容器内直连 raw.githubusercontent.com 失败导致规则不生效；详情页展示各远程地址拉取状态",
       "v1.0.1": "转为 MoviePilot V3 专用实现：移除 V2 兼容导入，统一走 app.sdk 稳定入口，图标与作者信息随本仓库发布",
       "v1.0.0": "首个版本：把番剧管家（Anime-Manager）的渲染词规则引擎移植到 MoviePilot，支持专家条件分季、集号平移、正则翻译/提取、偏移定位器与远程规则订阅"
