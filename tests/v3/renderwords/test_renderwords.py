@@ -381,6 +381,28 @@ def test_translate_hit_on_media_title():
     assert hits2 and "Frieren" in meta.title
 
 
+def test_lock_name_with_tmdbid():
+    """name 动作：tmdbid 重定向 + 锁定标题，或单独锁定"""
+    plugin = make_plugin()
+    media_type = sys.modules["app.schemas.types"].MediaType
+
+    # 单独锁定标题（配合正则反向引用）
+    meta = Meta(title="Frieren - 32 [1080p]", org_string="Frieren - 32 [1080p]", type=media_type.TV)
+    info = MediaInfo(title="Frieren: Beyond Journey's End", type=media_type.TV)
+    info, hits = plugin._run_rules(meta, info, meta.org_string, [r"Frieren - (\d+) => {[e=\1;name=芙莉莲 第\1集]}"])
+    assert hits
+    assert meta.begin_episode == 32
+    assert meta.cn_name == "芙莉莲 第32集" and meta.name == "芙莉莲 第32集"
+    assert info.title == "芙莉莲 第32集"
+
+    # tmdbid 重定向时同时锁定（redirect 无原生识别器可用时保留原 info 并锁标题）
+    meta2 = Meta(title="x", org_string="某番 1", type=media_type.TV)
+    info2 = MediaInfo(title="某番", tmdb_id=1, type=media_type.TV)
+    info2, hits2 = plugin._run_rules(meta2, info2, meta2.org_string, ["某番 => {[tmdbid=999;type=tv;name=锁定的名字]}"])
+    assert hits2
+    assert meta2.cn_name == "锁定的名字" and info2.title == "锁定的名字"
+
+
 def test_regex_extract_episode():
     """正则提取：强制覆盖集数"""
     plugin = make_plugin()

@@ -80,12 +80,20 @@ Unlimited Blade Works => UBW
 Regex => {[k=v;k=v]}
 ```
 
-右侧支持正则反向引用（`\1`）与公式。可写 `e` / `s` / `tmdbid`。
+右侧支持正则反向引用（`\1`）与公式。可写 `e` / `s` / `tmdbid` / `name`。
+
+`name` 用于**锁定标题**：直接把识别结果的标题改成指定名称（写入 meta.name/cn_name/en_name 与 media.title/en_title）。
+可与 `tmdbid` 组合，实现「指定 TMDB ID + 类型 + 名称」一步到位——重定向后标题固定为 `name` 的值，
+不再依赖 TMDB 返回的原始标题：
 
 ```
 25v2 => {[e=25]}
 [Ss](\d+)E(\d+) => {[s=\1;e=\2]}
+Frieren => {[tmdbid=209867;type=tv;name=葬送的芙莉莲]}
+某番 - (\d+) => {[e=\1;name=芙莉莲 第\1集]}   # \1 反向引用拼进标题
 ```
+
+> 注意：`name` 写入的标题会随识别结果进入媒体库，重命名模板用 `{{ title }}` 时即体现。
 
 ### 4. 偏移定位器
 

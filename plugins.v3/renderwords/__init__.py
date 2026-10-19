@@ -61,7 +61,7 @@ class RenderWords(_PluginBase):
     plugin_name = "渲染词"
     plugin_desc = "识别完成后按「渲染词」规则修正最终元数据：标题替换、季集重映射、年份/类型/TMDB 重定向"
     plugin_icon = "renderwords.png"
-    plugin_version = "1.0.10"
+    plugin_version = "1.0.11"
     plugin_author = "pipi20xx"
     author_url = "https://github.com/pipi20xx/555999"
     plugin_config_prefix = "renderwords_"
@@ -434,6 +434,13 @@ class RenderWords(_PluginBase):
             try:
                 if key == "tmdbid":
                     mediainfo = self._redirect(meta, mediainfo, value, mods.get("type"))
+                    # 锁定标题：重定向成功后把新标题写到新识别结果上
+                    lock = mods.get("name")
+                    if lock and mediainfo is not None:
+                        self._lock_title(lock, meta, mediainfo)
+                elif key == "name":
+                    # 手动指定标题（可单独使用，也可配合 tmdbid 锁定）
+                    self._lock_title(value, meta, mediainfo)
                 elif key == "type":
                     meta, mediainfo = self._set_type(meta, mediainfo, value)
                 elif key == "year":
@@ -454,6 +461,23 @@ class RenderWords(_PluginBase):
             except Exception as err:
                 logger.warning(f"渲染词：动作 [{key}={value}] 执行失败 - {err}")
         return meta, mediainfo
+
+    @staticmethod
+    def _lock_title(name: str, meta, mediainfo):
+        """锁定标题：把指定名称写到 meta 与 mediainfo 的标题字段"""
+        if not name:
+            return
+        name = str(name).strip()
+        if not name:
+            return
+        if meta is not None:
+            meta.name = name
+            meta.cn_name = name
+            meta.en_name = name
+        if mediainfo is not None:
+            mediainfo.title = name
+            mediainfo.en_title = name
+        logger.info(f"渲染词：标题已锁定 -> {name}")
 
     def _translate_hit_in_fields(self, pattern: str, meta, mediainfo) -> bool:
         """命中判定补充：识别结果字段里（已勾选的翻译字段）也能命中正则。
@@ -800,11 +824,15 @@ class RenderWords(_PluginBase):
                 "示例：Unlimited Blade Works => UBW",
                 "示例：(\d{4})p => \1P（\1 为反向引用）",
             ]),
-            panel("③ 正则提取（强制覆盖季集/ID）", [
+            panel("③ 正则提取（强制覆盖季集/ID/标题）", [
                 "格式：Regex => {[k=v;k=v]}，在文件名里匹配并提取，右侧支持 \1 反向引用。",
                 "可写键：e / s / tmdbid（tmdbid 会触发重定向，用新 ID 重新识别）。",
+                "锁定标题：name 键直接把识别结果的标题改为指定名称，可与 tmdbid 组合实现"
+                "『指定 TMDB ID + 类型 + 名称』一步到位；也支持 \1 反向引用拼进标题。",
                 "示例：25v2 => {[e=25]}",
                 "示例：[Ss](\d+)E(\d+) => {[s=\1;e=\2]}",
+                "示例：Frieren => {[tmdbid=209867;type=tv;name=葬送的芙莉莲]}（锁定标题）",
+                "示例：某番 - (\d+) => {[e=\1;name=芙莉莲 第\1集]}（反向引用）",
             ]),
             panel("④ 偏移定位器 与 && 串联", [
                 "偏移定位：前词 <> 后词 >> 公式，在文件名里匹配『前词(数字)后词』代入公式。",
